@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "OneSecondApp",
+    "slug": "OneSecondApp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "onesecondapp",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "OneSecondApp needs camera access to record your daily video clips.",
+        "NSMicrophoneUsageDescription": "OneSecondApp needs microphone access to record audio with your daily video clips.",
+        "NSPhotoLibraryAddUsageDescription": "OneSecondApp can save your daily clips to your photo library."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "permissions": ["CAMERA", "RECORD_AUDIO"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "OneSecondApp needs camera access to record your daily video clips.",
+          "microphonePermission": "OneSecondApp needs microphone access to record audio with your daily video clips.",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "OneSecondApp can save your daily clips to your photo library.",
+          "savePhotosPermission": "OneSecondApp can save your daily clips to your photo library.",
+          "isAccessMediaLocationEnabled": false
+        }
+      ]
+    ]
+  }
+}
