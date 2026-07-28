@@ -4,8 +4,13 @@ import { File } from 'expo-file-system';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 
 import { saveClip } from '../../lib/clipStore';
+
+const MIN_ZOOM = 0;
+const MAX_ZOOM = 1;
+const PINCH_SENSITIVITY = 0.5;
 
 export default function RecordScreen() {
   const router = useRouter();
@@ -15,7 +20,18 @@ export default function RecordScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(0);
   const cameraRef = useRef<CameraView>(null);
+  const zoomStartRef = useRef(0);
+
+  const pinchGesture = Gesture.Pinch()
+    .onStart(() => {
+      zoomStartRef.current = zoom;
+    })
+    .onUpdate((event) => {
+      const next = zoomStartRef.current + (event.scale - 1) * PINCH_SENSITIVITY;
+      setZoom(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next)));
+    });
 
   const player = useVideoPlayer(previewUri ?? null, (p) => {
     p.loop = true;
@@ -104,11 +120,24 @@ export default function RecordScreen() {
 
   return (
     <View style={styles.container}>
-      <CameraView ref={cameraRef} style={styles.camera} facing={facing} mode="video" />
+      <GestureDetector gesture={pinchGesture}>
+        <View style={styles.camera}>
+          <CameraView
+            ref={cameraRef}
+            style={StyleSheet.absoluteFill}
+            facing={facing}
+            mode="video"
+            zoom={zoom}
+          />
+        </View>
+      </GestureDetector>
       <View style={styles.controls}>
         <Pressable
           style={styles.flipButton}
-          onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))}
+          onPress={() => {
+            setFacing((f) => (f === 'back' ? 'front' : 'back'));
+            setZoom(0);
+          }}
         >
           <Text style={styles.flipButtonText}>Flip</Text>
         </Pressable>
