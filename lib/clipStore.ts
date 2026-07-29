@@ -1,6 +1,6 @@
 import { Directory, File, Paths } from 'expo-file-system';
 
-import { Clip, ClipGroup } from './types';
+import { Clip, ClipGroup, ClipMediaType } from './types';
 
 const clipsDir = new Directory(Paths.document, 'clips');
 const indexFile = new File(Paths.document, 'clips-index.json');
@@ -53,7 +53,11 @@ export function groupClipsByDate(clips: Clip[]): ClipGroup[] {
     }));
 }
 
-export async function saveClip(sourceUri: string, recordedAt: Date = new Date()): Promise<Clip> {
+export async function saveClip(
+  sourceUri: string,
+  recordedAt: Date = new Date(),
+  mediaType: ClipMediaType = 'video'
+): Promise<Clip> {
   ensureClipsDir();
 
   const extensionMatch = sourceUri.match(/\.([a-zA-Z0-9]+)$/);
@@ -75,6 +79,10 @@ export async function saveClip(sourceUri: string, recordedAt: Date = new Date())
     dateKey,
     createdAt: recordedAt.getTime(),
     isSelected: !hasSelectedForDate,
+    mediaType,
+    hashtags: [],
+    projects: [],
+    savedToCameraRoll: false,
   };
 
   clips.push(clip);
@@ -124,4 +132,67 @@ export function getSelectedClips(): Clip[] {
   return readIndex()
     .filter((c) => c.isSelected)
     .sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export function getClipsForProject(projectId: string): Clip[] {
+  return readIndex()
+    .filter((c) => c.projects.some((p) => p.projectId === projectId))
+    .sort((a, b) => b.createdAt - a.createdAt);
+}
+
+/**
+ * Assigns a clip to a project. The first clip assigned to a project on a
+ * given day is automatically included in that project's reel; later same-day
+ * clips are added un-reeled, matching the Reel Logic spec.
+ */
+export function assignClipToProject(clipId: string, projectId: string): void {
+  const clips = readIndex();
+  const target = clips.find((c) => c.id === clipId);
+  if (!target) return;
+  if (target.projects.some((p) => p.projectId === projectId)) return;
+
+  const isFirstForDay = !clips.some(
+    (c) => c.dateKey === target.dateKey && c.projects.some((p) => p.projectId === projectId && p.isReel)
+  );
+
+  target.projects.push({ projectId, isReel: isFirstForDay, isHighlight: false });
+  writeIndex(clips);
+}
+
+export function unassignClipFromProject(clipId: string, projectId: string): void {
+  const clips = readIndex();
+  const target = clips.find((c) => c.id === clipId);
+  if (!target) return;
+
+  target.projects = target.projects.filter((p) => p.projectId !== projectId);
+  writeIndex(clips);
+}
+
+export function toggleClipReel(clipId: string, projectId: string): void {
+  const clips = readIndex();
+  const target = clips.find((c) => c.id === clipId);
+  const assignment = target?.projects.find((p) => p.projectId === projectId);
+  if (!assignment) return;
+
+  assignment.isReel = !assignment.isReel;
+  writeIndex(clips);
+}
+
+export function toggleClipHighlight(clipId: string, projectId: string): void {
+  const clips = readIndex();
+  const target = clips.find((c) => c.id === clipId);
+  const assignment = target?.projects.find((p) => p.projectId === projectId);
+  if (!assignment) return;
+
+  assignment.isHighlight = !assignment.isHighlight;
+  writeIndex(clips);
+}
+
+/** Strips a deleted project's assignment off every clip, without touching the clips themselves. */
+export function removeProjectFromAllClips(projectId: string): void {
+  const clips = readIndex();
+  for (const clip of clips) {
+    clip.projects = clip.projects.filter((p) => p.projectId !== projectId);
+  }
+  writeIndex(clips);
 }
