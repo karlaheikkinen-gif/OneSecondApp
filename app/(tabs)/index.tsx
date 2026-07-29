@@ -1,8 +1,8 @@
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { CameraType, CameraView, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { File } from 'expo-file-system';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 
@@ -11,6 +11,7 @@ import { saveClip } from '../../lib/clipStore';
 const MIN_ZOOM = 0;
 const MAX_ZOOM = 1;
 const PINCH_SENSITIVITY = 0.5;
+const MAX_RECORD_SECONDS = 60;
 
 export default function RecordScreen() {
   const router = useRouter();
@@ -21,8 +22,26 @@ export default function RecordScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [zoom, setZoom] = useState(0);
+  const [isFocused, setIsFocused] = useState(true);
   const cameraRef = useRef<CameraView>(null);
   const zoomStartRef = useRef(0);
+  const isRecordingRef = useRef(false);
+
+  useEffect(() => {
+    isRecordingRef.current = isRecording;
+  }, [isRecording]);
+
+  useFocusEffect(
+    useCallback(() => {
+      setIsFocused(true);
+      return () => {
+        setIsFocused(false);
+        if (isRecordingRef.current) {
+          cameraRef.current?.stopRecording();
+        }
+      };
+    }, [])
+  );
 
   const pinchGesture = Gesture.Pinch()
     .onStart(() => {
@@ -38,11 +57,11 @@ export default function RecordScreen() {
     if (previewUri) p.play();
   });
 
-  const handleRecord = useCallback(async () => {
-    if (!cameraRef.current || isRecording) return;
+  const handlePressIn = useCallback(async () => {
+    if (!cameraRef.current || isRecordingRef.current) return;
     setIsRecording(true);
     try {
-      const video = await cameraRef.current.recordAsync({ maxDuration: 1 });
+      const video = await cameraRef.current.recordAsync({ maxDuration: MAX_RECORD_SECONDS });
       if (video?.uri) {
         setPreviewUri(video.uri);
       }
@@ -51,7 +70,13 @@ export default function RecordScreen() {
     } finally {
       setIsRecording(false);
     }
-  }, [isRecording]);
+  }, []);
+
+  const handlePressOut = useCallback(() => {
+    if (isRecordingRef.current) {
+      cameraRef.current?.stopRecording();
+    }
+  }, []);
 
   const handleDiscard = useCallback(() => {
     if (previewUri) {
@@ -128,6 +153,7 @@ export default function RecordScreen() {
             facing={facing}
             mode="video"
             zoom={zoom}
+            active={isFocused}
           />
         </View>
       </GestureDetector>
@@ -143,10 +169,10 @@ export default function RecordScreen() {
         </Pressable>
         <Pressable
           style={[styles.recordButton, isRecording && styles.recordButtonActive]}
-          onPress={handleRecord}
-          disabled={isRecording}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
         >
-          {isRecording ? <ActivityIndicator color="#fff" /> : <View style={styles.recordButtonInner} />}
+          <View style={[styles.recordButtonInner, isRecording && styles.recordButtonInnerActive]} />
         </Pressable>
         <View style={styles.flipButton} />
       </View>
@@ -210,6 +236,11 @@ const styles = StyleSheet.create({
     height: 60,
     borderRadius: 30,
     backgroundColor: '#e33',
+  },
+  recordButtonInnerActive: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
   },
   flipButton: {
     width: 60,
